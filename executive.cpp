@@ -93,7 +93,7 @@ inline void filter_syscall(pid_t child, long long *out_lim)
 int main(int argc, char *argv[], char *envp[])
 {
   if(argc <= 6) {
-    fputs("Usage: play-ptrace <input> <output> "
+    fputs("Usage: executive <input> <output> "
 	  "<time limit> <mem limit> <out limit>"
 	  "<program> [<args>...]\n", stderr);
     return -1;
