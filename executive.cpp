@@ -1,16 +1,17 @@
 extern "C"
 {
-#include <sys/ptrace.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <sys/user.h>
-#include <sys/reg.h>
-#include <sys/syscall.h>
 #include <asm/unistd.h>
 #include <errno.h>
+#include <sys/mman.h>
+#include <sys/ptrace.h>
+#include <sys/reg.h>
 #include <sys/resource.h>
+#include <sys/syscall.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/user.h>
+#include <sys/wait.h>
+#include <unistd.h>
 }
 
 #include <cstdio>
@@ -36,8 +37,10 @@ inline bool is_safe_call(const user_regs_struct *regs)
     // set FS and GS, x64 segmentation
     || id == __NR_arch_prctl
 
-    // anon mmap for allocation, probably for allocation
-    || (id == __NR_mmap && (regs->r8 == 0xffffffffULL))
+    // anon mmap for allocation
+    || (id == __NR_mmap
+	&& regs->r8 == 0xffffffffULL
+	&& (regs->r10 & MAP_ANONYMOUS))
 
     // stat-ing stdin or stdout
     || (id == __NR_fstat && (regs->rdi == 0 || regs->rdi == 1));
