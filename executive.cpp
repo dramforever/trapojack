@@ -23,18 +23,22 @@ using namespace std;
 #if defined(__x86_64__)
 
 typedef long long REG_TYPE;
+#define REG_FMT "%lld"
 
 #define SYS_ID orig_rax
 #define SYS_ARG_1 rdi
+#define SYS_ARG_3 rdx
 #define SYS_ARG_4 r10
 #define SYS_ARG_5 r8
 
 #elif defined(__i386__)
 
 typedef int REG_TYPE;
+#define REG_FMT "%d"
 
 #define SYS_ID orig_eax
 #define SYS_ARG_1 ebx
+#define SYS_ARG_3 edx
 #define SYS_ARG_4 esi
 #define SYS_ARG_5 edi
 
@@ -56,8 +60,10 @@ inline bool is_safe_call(const user_regs_struct *regs)
     // brk, memory allocation
     || id == __NR_brk
 
+#if defined(__x86_64__)
     // set FS and GS, x64 segmentation
     || id == __NR_arch_prctl
+#endif
 
     // anon mmap for allocation
     || (id == __NR_mmap
@@ -93,7 +99,7 @@ inline void filter_syscall(pid_t child, REG_TYPE *out_lim)
   TRY(fflush(stderr));
 
   if(regs.SYS_ID == __NR_write && regs.SYS_ARG_1 == 1
-     && (*out_lim -= (REG_TYPE)regs.rdx) <= 0) {
+     && (*out_lim -= (REG_TYPE)regs.SYS_ARG_3) <= 0) {
     // Write to stdout, OLE
     fputs("[exe]: Output limit exceeded\n", stderr);
     kill(child, SIGKILL);
@@ -105,7 +111,7 @@ inline void filter_syscall(pid_t child, REG_TYPE *out_lim)
     TRY(wait(NULL));
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   } else {
-    fprintf(stderr, "[exe]: Denied call %lld\n", regs.SYS_ID);
+    fprintf(stderr, "[exe]: Denied call " REG_FMT "\n", regs.SYS_ID);
 
 #if defined(__x86_64__)
     TRY(ptrace(PTRACE_POKEUSER, child, 8 * ORIG_RAX, __NR_getpid));
