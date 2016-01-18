@@ -20,16 +20,38 @@ extern "C"
 
 using namespace std;
 
+#if defined(__x86_64__)
+
+typedef long long REG_TYPE;
+
+#define SYS_ID orig_rax
+#define SYS_ARG_1 rdi
+#define SYS_ARG_4 r10
+#define SYS_ARG_5 r8
+
+#elif defined(__i386__)
+
+typedef int REG_TYPE;
+
+#define SYS_ID orig_eax
+#define SYS_ARG_1 ebx
+#define SYS_ARG_4 esi
+#define SYS_ARG_5 edi
+
+#else
+# error "Unknown architecture"
+#endif
+
 inline bool is_safe_call(const user_regs_struct *regs)
 {
-  int id = regs->orig_rax;
+  int id = regs->SYS_ID;
 
   return
     // read stdin
-    (id == __NR_read && regs->rdi == 0)
+    (id == __NR_read && regs->SYS_ARG_1 == 0)
 
     // write stdout
-    || (id == __NR_write && regs->rdi == 1)
+    || (id == __NR_write && regs->SYS_ARG_1 == 1)
 
     // brk, memory allocation
     || id == __NR_brk
@@ -39,11 +61,11 @@ inline bool is_safe_call(const user_regs_struct *regs)
 
     // anon mmap for allocation
     || (id == __NR_mmap
-        && regs->r8 == 0xffffffffULL
-        && (regs->r10 & MAP_ANONYMOUS))
+        && regs->SYS_ARG_5 == 0xffffffffU
+        && (regs->SYS_ARG_4 & MAP_ANONYMOUS))
 
     // stat-ing stdin or stdout
-    || (id == __NR_fstat && (regs->rdi == 0 || regs->rdi == 1))
+    || (id == __NR_fstat && (regs->SYS_ARG_1 == 0 || regs->SYS_ARG_1 == 1))
 
     // getting the uname
     || id == __NR_uname;
@@ -51,7 +73,7 @@ inline bool is_safe_call(const user_regs_struct *regs)
 
 inline bool is_exit_call(const user_regs_struct *regs)
 {
-  return regs->orig_rax == __NR_exit || regs->orig_rax == __NR_exit_group;
+  return regs->SYS_ID == __NR_exit || regs->SYS_ID == __NR_exit_group;
 }
 
 #define TRY(x)                                                               \
@@ -63,15 +85,15 @@ inline bool is_exit_call(const user_regs_struct *regs)
     }                                                                        \
   } while(0)
 
-inline void filter_syscall(pid_t child, long long *out_lim)
+inline void filter_syscall(pid_t child, REG_TYPE *out_lim)
 {
   user_regs_struct regs;
   TRY(ptrace(PTRACE_GETREGS, child, NULL, &regs));
 
   TRY(fflush(stderr));
 
-  if(regs.orig_rax == __NR_write && regs.rdi == 1
-     && (*out_lim -= (long long)regs.rdx) <= 0) {
+  if(regs.SYS_ID == __NR_write && regs.SYS_ARG_1 == 1
+     && (*out_lim -= (REG_TYPE)regs.rdx) <= 0) {
     // Write to stdout, OLE
     fputs("[exe]: Output limit exceeded\n", stderr);
     kill(child, SIGKILL);
@@ -83,11 +105,27 @@ inline void filter_syscall(pid_t child, long long *out_lim)
     TRY(wait(NULL));
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   } else {
-    fprintf(stderr, "[exe]: Denied call %lld\n", regs.orig_rax);
+    fprintf(stderr, "[exe]: Denied call %lld\n", regs.SYS_ID);
+
+#if defined(__x86_64__)
     TRY(ptrace(PTRACE_POKEUSER, child, 8 * ORIG_RAX, __NR_getpid));
+#elif defined(__i386__)
+    TRY(ptrace(PTRACE_POKEUSER, child, 4 * ORIG_EAX, __NR_getpid));
+#else
+# error "Unknown architecture"
+#endif
+
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
     TRY(wait(NULL));
+
+#if defined(__x86_64__)
     TRY(ptrace(PTRACE_POKEUSER, child, 8 * RAX, -EPERM));
+#elif defined(__i386__)
+    TRY(ptrace(PTRACE_POKEUSER, child, 4 * RAX, -EPERM));
+#else
+# error "Unknown architecture"
+#endif
+
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   }
 }
@@ -101,7 +139,7 @@ int main(int argc, char *argv[], char *envp[])
     return -1;
   }
 
-  long long time_lim = strtoll(argv[3], &argv[3], 10);
+  REG_TYPE time_lim = strtol(argv[3], &argv[3], 10);
 
   if(*argv[3] != '\0') {
     fputs("Time limit must be a number\n", stderr);
@@ -115,7 +153,7 @@ int main(int argc, char *argv[], char *envp[])
     return -1;
   }
 
-  long long out_lim = strtoll(argv[5], &argv[5], 10);
+  REG_TYPE out_lim = strtol(argv[5], &argv[5], 10);
 
   if(*argv[5] != '\0') {
     fputs("Output limit must be a number\n", stderr);
