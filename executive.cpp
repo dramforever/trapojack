@@ -23,7 +23,7 @@ using namespace std;
 inline bool is_safe_call(const user_regs_struct *regs)
 {
   int id = regs->orig_rax;
-  
+
   return
     // read stdin
     (id == __NR_read && regs->rdi == 0)
@@ -39,8 +39,8 @@ inline bool is_safe_call(const user_regs_struct *regs)
 
     // anon mmap for allocation
     || (id == __NR_mmap
-	&& regs->r8 == 0xffffffffULL
-	&& (regs->r10 & MAP_ANONYMOUS))
+        && regs->r8 == 0xffffffffULL
+        && (regs->r10 & MAP_ANONYMOUS))
 
     // stat-ing stdin or stdout
     || (id == __NR_fstat && (regs->rdi == 0 || regs->rdi == 1));
@@ -56,13 +56,13 @@ inline bool is_exit_call(const user_regs_struct *regs)
   return regs->orig_rax == __NR_exit || regs->orig_rax == __NR_exit_group;
 }
 
-#define TRY(x)								\
-  do {									\
-    if((x) == -1) {							\
-      fprintf(stderr, "[exe]: Internal error %s\n", strerror(errno));	\
-      kill(child, SIGKILL);						\
-      asm("int $3"); exit(-1);						\
-    }									\
+#define TRY(x)                                                               \
+  do {                                                                       \
+    if((x) == -1) {                                                          \
+      fprintf(stderr, "[exe]: Internal error %s\n", strerror(errno));        \
+      kill(child, SIGKILL);                                                  \
+      asm("int $3"); exit(-1);                                               \
+    }                                                                        \
   } while(0)
 
 inline void filter_syscall(pid_t child, long long *out_lim)
@@ -87,7 +87,7 @@ inline void filter_syscall(pid_t child, long long *out_lim)
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   } else {
     fprintf(stderr, "[exe]: Unsafe call %llu, killing guest\n",
-	    regs.orig_rax);
+            regs.orig_rax);
     kill(child, SIGKILL);
     exit(1);
   }
@@ -97,8 +97,8 @@ int main(int argc, char *argv[], char *envp[])
 {
   if(argc <= 6) {
     fputs("Usage: executive <input> <output> "
-	  "<time limit> <mem limit> <out limit>"
-	  "<program> [<args>...]\n", stderr);
+          "<time limit> <mem limit> <out limit>"
+          "<program> [<args>...]\n", stderr);
     return -1;
   }
 
@@ -122,18 +122,18 @@ int main(int argc, char *argv[], char *envp[])
     fputs("Output limit must be a number\n", stderr);
     return -1;
   }
-  
+
   pid_t child = vfork();
-  
+
   if(child == 0) {
 
-#define GTRY(x, ec)							\
-    do {								\
-      if((x) == ec) {							\
-	fprintf(stderr, "[gst]: Internal error %s\n", strerror(errno)); \
-	fflush(stderr);							\
-	_exit(-1);							\
-      }									\
+#define GTRY(x, ec)                                                          \
+    do {                                                                     \
+      if((x) == ec) {                                                        \
+        fprintf(stderr, "[gst]: Internal error %s\n", strerror(errno));      \
+        fflush(stderr);                                                      \
+        _exit(-1);                                                           \
+      }                                                                      \
     } while(0)
 
     fprintf(stderr, "[gst]: Guest pid = %d\n", getpid());
@@ -171,33 +171,33 @@ int main(int argc, char *argv[], char *envp[])
       TRY(ptrace(PTRACE_SYSCALL, child, 0, 0)); // Skip over the exec
       TRY(wait(&status));
       while(WIFSTOPPED(status)) {
-	if(WSTOPSIG(status) == (SIGTRAP | 0x80)) {
-	  filter_syscall(child, &out_lim);
-	} else {
-	  ptrace(PTRACE_CONT, child, NULL, WSTOPSIG(status));
-	}
-	wait(&status);
+        if(WSTOPSIG(status) == (SIGTRAP | 0x80)) {
+          filter_syscall(child, &out_lim);
+        } else {
+          ptrace(PTRACE_CONT, child, NULL, WSTOPSIG(status));
+        }
+        wait(&status);
       }
 
       if (WIFEXITED(status)) {
-	if(WEXITSTATUS(status) == 0) {
-	  fputs("[exe]: Exited successfully\n", stderr);
-	  return 0;
-	} else {
-	  fprintf(stderr, "[exe]: Exited with failure status %d\n",
-		  WEXITSTATUS(status));
-	  return 1;
-	}
+        if(WEXITSTATUS(status) == 0) {
+          fputs("[exe]: Exited successfully\n", stderr);
+          return 0;
+        } else {
+          fprintf(stderr, "[exe]: Exited with failure status %d\n",
+                  WEXITSTATUS(status));
+          return 1;
+        }
       } else if (WIFSIGNALED(status)) {
-	if(WTERMSIG(status) == SIGALRM) {
-	  fputs("[exe]: Time limit exceeded", stderr);
-	  return 1;
-	} else {
-	  fprintf(stderr, "[exe]: Killed by signal %d\n",
-		  WTERMSIG(status));
-	  return 1;
-	}
+        if(WTERMSIG(status) == SIGALRM) {
+          fputs("[exe]: Time limit exceeded", stderr);
+          return 1;
+        } else {
+          fprintf(stderr, "[exe]: Killed by signal %d\n",
+                  WTERMSIG(status));
+          return 1;
+        }
       }
     }
-  } 
+  }
 }
