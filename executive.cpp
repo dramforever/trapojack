@@ -46,6 +46,14 @@ typedef int REG_TYPE;
 # error "Unknown architecture"
 #endif
 
+#define STATUS_INTERNAL_ERROR -1
+
+#define STATUS_SIGNAL 10
+#define STATUS_TLE 20
+#define STATUS_MLE 30
+#define STATUS_OLE 40
+#define STATUS_RE 50
+
 inline bool is_safe_call(const user_regs_struct *regs)
 {
   int id = regs->SYS_ID;
@@ -98,7 +106,7 @@ inline bool is_exit_call(const user_regs_struct *regs)
     if((x) == -1) {                                                          \
       fprintf(stderr, "[exe]: Internal error %s\n", strerror(errno));        \
       kill(child, SIGKILL);                                                  \
-      asm("int $3"); exit(-1);                                               \
+      asm("int $3"); exit(STATUS_INTERNAL_ERROR));                                               \
     }                                                                        \
   } while(0)
 
@@ -114,7 +122,7 @@ inline void filter_syscall(pid_t child, REG_TYPE *out_lim)
     // Write to stdout, OLE
     fputs("[exe]: Output limit exceeded\n", stderr);
     kill(child, SIGKILL);
-    exit(1);
+    exit(STATUS_OLE);
   } else if(is_exit_call(&regs)) {
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   } else if(is_safe_call(&regs)) {
@@ -160,21 +168,21 @@ int main(int argc, char *argv[], char *envp[])
 
   if(*argv[3] != '\0') {
     fputs("Time limit must be a number\n", stderr);
-    return -1;
+    return STATUS_INTERNAL_ERROR;
   }
 
   long mem_lim = strtol(argv[4], &argv[4], 10);
 
   if(*argv[4] != '\0') {
     fputs("Mem limit must be a number\n", stderr);
-    return -1;
+    return STATUS_INTERNAL_ERROR;
   }
 
   REG_TYPE out_lim = strtol(argv[5], &argv[5], 10);
 
   if(*argv[5] != '\0') {
     fputs("Output limit must be a number\n", stderr);
-    return -1;
+    return STATUS_INTERNAL_ERROR;
   }
 
   pid_t child = vfork();
@@ -186,7 +194,7 @@ int main(int argc, char *argv[], char *envp[])
       if((x) == ec) {                                                        \
         fprintf(stderr, "[gst]: Internal error %s\n", strerror(errno));      \
         fflush(stderr);                                                      \
-        _exit(-1);                                                           \
+        _exit(STATUS_INTERNAL_ERROR);                                                           \
       }                                                                      \
     } while(0)
 
@@ -213,13 +221,13 @@ int main(int argc, char *argv[], char *envp[])
     execve(argv[6], argv+6, envp);
 
     // execve failed
-    _exit(1);
+    _exit(STATUS_INTERNAL_ERROR);
   } else {
     int status;
     wait(&status);
     if(WIFEXITED(status)) {
       fputs("[exe]: Failed to start guest\n", stderr);
-      return 127;
+      return STATUS_INTERNAL_ERROR;
     } else {
       TRY(ptrace(PTRACE_SETOPTIONS, child, NULL, PTRACE_O_TRACESYSGOOD));
       TRY(ptrace(PTRACE_SYSCALL, child, 0, 0)); // Skip over the exec
@@ -240,16 +248,16 @@ int main(int argc, char *argv[], char *envp[])
         } else {
           fprintf(stderr, "[exe]: Exited with failure status %d\n",
                   WEXITSTATUS(status));
-          return 1;
+          return STATUS_RE;
         }
       } else if (WIFSIGNALED(status)) {
         if(WTERMSIG(status) == SIGALRM) {
           fputs("[exe]: Time limit exceeded", stderr);
-          return 1;
+          return STATUS_TLE;
         } else {
           fprintf(stderr, "[exe]: Killed by signal %d\n",
                   WTERMSIG(status));
-          return 1;
+          return STATUS_SIGNAL;
         }
       }
     }
