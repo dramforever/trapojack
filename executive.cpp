@@ -43,12 +43,10 @@ inline bool is_safe_call(const user_regs_struct *regs)
         && (regs->r10 & MAP_ANONYMOUS))
 
     // stat-ing stdin or stdout
-    || (id == __NR_fstat && (regs->rdi == 0 || regs->rdi == 1));
-}
+    || (id == __NR_fstat && (regs->rdi == 0 || regs->rdi == 1))
 
-inline bool should_mask_call(const user_regs_struct *regs)
-{
-  return regs->orig_rax == __NR_uname || regs->orig_rax == __NR_readlink;
+    // getting the uname
+    || id == __NR_uname;
 }
 
 inline bool is_exit_call(const user_regs_struct *regs)
@@ -80,16 +78,17 @@ inline void filter_syscall(pid_t child, long long *out_lim)
     exit(1);
   } else if(is_exit_call(&regs)) {
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
-  } else if(is_safe_call(&regs) || should_mask_call(&regs)) {
-    // TODO: Implement masks
+  } else if(is_safe_call(&regs)) {
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
     TRY(wait(NULL));
     TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   } else {
-    fprintf(stderr, "[exe]: Unsafe call %llu, killing guest\n",
-            regs.orig_rax);
-    kill(child, SIGKILL);
-    exit(1);
+    fprintf(stderr, "[exe]: Denied call %lld\n", regs.orig_rax);
+    TRY(ptrace(PTRACE_POKEUSER, child, 8 * ORIG_RAX, __NR_getpid));
+    TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
+    TRY(wait(NULL));
+    TRY(ptrace(PTRACE_POKEUSER, child, 8 * RAX, -EPERM));
+    TRY(ptrace(PTRACE_SYSCALL, child, 0, 0));
   }
 }
 
