@@ -34,7 +34,7 @@ typedef long long REG_TYPE;
 #elif defined(__i386__)
 
 typedef int REG_TYPE;
-#define REG_FMT "%d"
+#define REG_FMT "%ld"
 
 #define SYS_ID orig_eax
 #define SYS_ARG_1 ebx
@@ -127,7 +127,7 @@ inline void filter_syscall(pid_t child, REG_TYPE *out_lim)
 #if defined(__x86_64__)
     TRY(ptrace(PTRACE_POKEUSER, child, 8 * RAX, -EPERM));
 #elif defined(__i386__)
-    TRY(ptrace(PTRACE_POKEUSER, child, 4 * RAX, -EPERM));
+    TRY(ptrace(PTRACE_POKEUSER, child, 4 * EAX, -EPERM));
 #else
 # error "Unknown architecture"
 #endif
