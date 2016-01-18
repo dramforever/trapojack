@@ -63,15 +63,26 @@ inline bool is_safe_call(const user_regs_struct *regs)
 #if defined(__x86_64__)
     // set FS and GS, x64 segmentation
     || id == __NR_arch_prctl
+#elif defined(__i386__)
+    // Thread area manipulation
+    || id == __NR_set_thread_area
+    || id == __NR_get_thread_area
 #endif
 
     // anon mmap for allocation
-    || (id == __NR_mmap
-        && regs->SYS_ARG_5 == 0xffffffffU
-        && (regs->SYS_ARG_4 & MAP_ANONYMOUS))
+    || ((id == __NR_mmap
+#if defined(__i386__)
+         || id == __NR_mmap2
+#endif
+        ) && regs->SYS_ARG_5 == 0xffffffffU
+          && (regs->SYS_ARG_4 & MAP_ANONYMOUS))
 
     // stat-ing stdin or stdout
-    || (id == __NR_fstat && (regs->SYS_ARG_1 == 0 || regs->SYS_ARG_1 == 1))
+    || ((id == __NR_fstat
+#if defined(__i386__)
+         || id == __NR_fstat64
+#endif
+        ) && (regs->SYS_ARG_1 == 0 || regs->SYS_ARG_1 == 1))
 
     // getting the uname
     || id == __NR_uname;
