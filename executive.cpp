@@ -99,7 +99,7 @@ inline bool is_exit_call(const user_regs_struct *regs)
     if((x) == -1) {                                                          \
       fprintf(stderr, "[exe]: Internal error %s\n", strerror(errno));        \
       kill(child, SIGKILL);                                                  \
-      asm("int $3"); exit(STATUS_INTERNAL_ERROR));                                               \
+      asm("int $3"); exit(STATUS_INTERNAL_ERROR);                            \
     }                                                                        \
   } while(0)
 
