@@ -85,13 +85,6 @@ inline bool is_safe_call(const user_regs_struct *regs)
         ) && regs->SYS_ARG_5 == 0xffffffffU
           && (regs->SYS_ARG_4 & MAP_ANONYMOUS))
 
-    // stat-ing stdin or stdout
-    || ((id == __NR_fstat
-#if defined(__i386__)
-         || id == __NR_fstat64
-#endif
-        ) && (regs->SYS_ARG_1 == 0 || regs->SYS_ARG_1 == 1))
-
     // getting the uname
     || id == __NR_uname;
 }
