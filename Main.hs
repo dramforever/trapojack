@@ -6,55 +6,75 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE TemplateHaskell       #-}
 
 module Main (main) where
 
 import           Control.Monad.Except
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Either
-import           Database.Persist
-import           Database.Persist.Sqlite
+import           Data.Aeson
+import           Data.Aeson.TH
+import qualified Database.Persist           as P
+import qualified Database.Persist.Sqlite    as P
+import           Database.Esqueleto
 import qualified Data.Text                  as T
 import qualified Data.Text.IO               as T
 import           Network.Wai.Handler.Warp
 import           Servant
+import           Web.Cuid
 
-import Models
+import           Models
+import           Results
 
-type Trapojack = "submissions" :> Get '[JSON] [SolutionId]
+type Trapojack = "solutions"
+                 :> Get '[JSON] AllSolutions
 
-            :<|> "submissions" :> Capture "id" SolutionId
-                               :> Get '[JSON] SolutionResults
+            :<|> "solutions" :> Capture "id" SolutionId
+                 :> Get '[JSON] SolutionDetails
 
-            :<|> "submissions" :> ReqBody '[PlainText] T.Text
-                               :> Post '[JSON] SolutionId
+            :<|> "problems"
+                 :> Get '[JSON] [ProblemSummary]
+
+            :<|> "problems" :> Capture "pid" ProblemId
+                 :> Get '[JSON] Problem
+
+            :<|> "problems" :> Capture "pid" ProblemId
+                 :> "solutions" :> ReqBody '[PlainText] T.Text
+                 :> Post '[JSON] SolutionId
 
 ------------------------------------------------------------------------------
 
-getSolutionsList :: SqlBackend
-                 -> EitherT ServantErr IO [SolutionId]
-getSolutionsList backend =
-  runSqlConn (selectKeysList [] []) backend
+getAllSolutions :: SqlBackend
+                -> EitherT ServantErr IO AllSolutions
+getAllSolutions _backend = undefined
 
 ------------------------------------------------------------------------------
 
 getSolutionResults :: SqlBackend -> SolutionId
-                   -> EitherT ServantErr IO SolutionResults
+                   -> EitherT ServantErr IO SolutionDetails
 getSolutionResults backend solutionId =
   runSqlConn (get solutionId) backend >>= \case
     Nothing -> throwError err404
     Just solution -> do
       runs <- runSqlConn (selectKeysList [TestRunOfSolution ==. solutionId]
                                          [Asc TestRunNumber]) backend
-      return (SolutionResults solution runs)
+      return (SolutionDetails solution runs)
+
+------------------------------------------------------------------------------
+
+getProblemsList :: SqlBackend -> ExceptT ServantErr IO [ProblemSummary]
+getProblemsList backend =
+  flip runSqlConn backend $
+    select $ from $ \p -> return (ProblemSummary (p ^. ProblemId) (p ^. ProblemTitle))
 
 ------------------------------------------------------------------------------
 
 postSolutions :: SqlBackend -> T.Text
               -> EitherT ServantErr IO SolutionId
 postSolutions backend code = do
-  
-  runSqlConn (insert (Solution Compiling fileName)) backend
+  fileID <- newCuid
+  runSqlConn (insert (Solution Compiling fileID)) backend
 
 ------------------------------------------------------------------------------
 

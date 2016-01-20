@@ -24,6 +24,7 @@ data TestRunState
   | TimeLimitExceeded
   | MemoryLimitExceeded
   | OutputLimitExceeded
+  | InternalError
   deriving (Show, Read, Eq)
 
 $(derivePersistField "TestRunState")
@@ -45,3 +46,4 @@ instance ToJSON TestRunState where
     TimeLimitExceeded   -> "TLE"
     MemoryLimitExceeded -> "MLE"
     OutputLimitExceeded -> "OLE"
+    InternalError       -> "Internal Error"

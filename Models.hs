@@ -14,23 +14,23 @@
 module Models
     ( TestRun(..) , TestRunId
     , Solution(..), SolutionId
+    , Problem(..), ProblemId
     , SolutionState(..), TestRunState(..)
-    , SolutionResults(..)
     , EntityField(..), Key(..)
     , migrateAll
     ) where
 
-import Database.Persist.TH
-import Data.Aeson.TH
+import           Database.Persist.TH
+import           Data.Aeson.TH
 
-import Servant
-import Database.Persist
+import           Servant
+import           Database.Persist
 import qualified Data.Text as T
-import Data.Text (Text)
-import Data.Aeson
+import           Data.Text (Text)
+import           Data.Aeson
 
-import Data.Aeson.Types
-import States
+import           Data.Aeson.Types
+import           States
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 TestRun
@@ -40,22 +40,23 @@ TestRun
     ofSolution SolutionId
     deriving Show
 Solution
-    ofProblem Text
+    ofProblem ProblemId
     state SolutionState
-    codeHash Text
-    UniqueCodeHash codeHash
+    cuid Text
+    UniqueFileId cuid
+    deriving Show
+Problem
+    title Text
+    description Text
+    handle Text
+    UniqueHandle handle
     deriving Show
 |]
 
-data SolutionResults
-  = SolutionResults
-    { srSolution :: Solution
-    , srTestRuns :: [TestRunId]
-    }
 
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "TestRun")} ''TestRun)
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "Solution")} ''Solution)
-$(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "sr")} ''SolutionResults)
+$(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "Problem")} ''Problem)
 
 instance ToJSON (Entity TestRun) where
   toJSON (Entity k v) = object [T.pack "id" .= k, T.pack "value" .= v]
