@@ -187,7 +187,7 @@ int main(int argc, char *argv[], char *envp[])
       if((x) == ec) {                                                        \
         fprintf(stderr, "[gst]: Internal error %s\n", strerror(errno));      \
         fflush(stderr);                                                      \
-        _exit(STATUS_INTERNAL_ERROR);                                                           \
+        _exit(STATUS_INTERNAL_ERROR);                                        \
       }                                                                      \
     } while(0)
 
