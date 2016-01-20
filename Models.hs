@@ -32,6 +32,7 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import           States
 
+
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 TestRun
     number Int
@@ -53,7 +54,6 @@ Problem
     deriving Show
 |]
 
-
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "TestRun")} ''TestRun)
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "Solution")} ''Solution)
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "Problem")} ''Problem)
@@ -63,3 +63,6 @@ instance ToJSON (Entity TestRun) where
 
 instance FromText (Key Solution) where
   fromText x = SolutionKey . fromInteger <$> fromText x
+
+instance FromText (Key Problem) where
+  fromText x = ProblemKey . fromInteger <$> fromText x

@@ -9,6 +9,7 @@ module States
 import Data.Aeson
 import Database.Persist.TH
 
+
 data SolutionState
   = Compiling
   | Compiled

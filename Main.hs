@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
 module Main (main) where
@@ -13,11 +14,8 @@ module Main (main) where
 import           Control.Monad.Except
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Either
-import           Data.Aeson
-import           Data.Aeson.TH
-import qualified Database.Persist           as P
-import qualified Database.Persist.Sqlite    as P
-import           Database.Esqueleto
+import           Database.Persist
+import           Database.Persist.Sqlite
 import qualified Data.Text                  as T
 import qualified Data.Text.IO               as T
 import           Network.Wai.Handler.Warp
@@ -28,7 +26,7 @@ import           Models
 import           Results
 
 type Trapojack = "solutions"
-                 :> Get '[JSON] AllSolutions
+                 :> Get '[JSON] [SolutionSummary]
 
             :<|> "solutions" :> Capture "id" SolutionId
                  :> Get '[JSON] SolutionDetails
@@ -45,43 +43,52 @@ type Trapojack = "solutions"
 
 ------------------------------------------------------------------------------
 
-getAllSolutions :: SqlBackend
-                -> EitherT ServantErr IO AllSolutions
-getAllSolutions _backend = undefined
+getSolutionsList :: SqlBackend
+                -> EitherT ServantErr IO [SolutionSummary]
+getSolutionsList _backend = undefined
 
 ------------------------------------------------------------------------------
 
-getSolutionResults :: SqlBackend -> SolutionId
+getSolutionDetails :: SqlBackend -> SolutionId
                    -> EitherT ServantErr IO SolutionDetails
-getSolutionResults backend solutionId =
+getSolutionDetails backend solutionId =
   runSqlConn (get solutionId) backend >>= \case
     Nothing -> throwError err404
     Just solution -> do
-      runs <- runSqlConn (selectKeysList [TestRunOfSolution ==. solutionId]
-                                         [Asc TestRunNumber]) backend
+      runs <- runSqlConn (selectList [] []) backend
       return (SolutionDetails solution runs)
 
 ------------------------------------------------------------------------------
 
-getProblemsList :: SqlBackend -> ExceptT ServantErr IO [ProblemSummary]
-getProblemsList backend =
-  flip runSqlConn backend $
-    select $ from $ \p -> return (ProblemSummary (p ^. ProblemId) (p ^. ProblemTitle))
+getProblemsList :: SqlBackend -> EitherT ServantErr IO [ProblemSummary]
+getProblemsList backend = runSqlConn (map go <$> selectList [] []) backend
+  where go (Entity key Problem{..}) =
+          ProblemSummary key problemTitle
 
 ------------------------------------------------------------------------------
 
-postSolutions :: SqlBackend -> T.Text
+getProblem :: SqlBackend -> ProblemId -> EitherT ServantErr IO Problem
+getProblem backend pid = runSqlConn (get pid) backend >>= \case
+  Nothing -> throwError err404
+  Just p -> return p
+
+------------------------------------------------------------------------------
+
+postSolution :: SqlBackend -> ProblemId -> T.Text
               -> EitherT ServantErr IO SolutionId
-postSolutions backend code = do
-  fileID <- newCuid
-  runSqlConn (insert (Solution Compiling fileID)) backend
+postSolution backend pid code = do
+  fileId <- newCuid
+  liftIO $ T.writeFile ("filestore/solution_" ++ T.unpack fileId) code
+  runSqlConn (insert (Solution pid Compiling fileId)) backend
 
 ------------------------------------------------------------------------------
 
 trapojack :: SqlBackend -> Server Trapojack
 trapojack backend = getSolutionsList backend
-               :<|> getSolutionResults backend
-               :<|> postSolutions backend
+               :<|> getSolutionDetails backend
+               :<|> getProblemsList backend
+               :<|> getProblem backend
+               :<|> postSolution backend
 
 main :: IO ()
 main = runNoLoggingT

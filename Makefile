@@ -1,5 +1,5 @@
 trapojack: filestore-dirs executive
-	ghc -O -o trapojack Main.hs
+	ghc -o trapojack Main.hs
 
 executive: executive.cpp
 
