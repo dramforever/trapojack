@@ -4,48 +4,64 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 module Main (main) where
 
-import Servant.API
-import Control.Monad.Trans.Either
-import Servant
-import Network.Wai.Handler.Warp
-import Database.Persist.Sqlite
-import Control.Monad.Logger
-import Control.Monad.Reader
+import           Control.Monad.Except
+import           Control.Monad.Logger
+import           Control.Monad.Trans.Either
+import           Database.Persist
+import           Database.Persist.Sqlite
+import qualified Data.Text                  as T
+import qualified Data.Text.IO               as T
+import           Network.Wai.Handler.Warp
+import           Servant
 
 import Models
 
-type Trapojack = "test_runs" :> Get '[JSON] [TestRunId]
+type Trapojack = "submissions" :> Get '[JSON] [SolutionId]
 
-            :<|> "test_runs" :> Capture "id" Int
-                             :> Get '[JSON] TestRun
+            :<|> "submissions" :> Capture "id" SolutionId
+                               :> Get '[JSON] SolutionResults
 
-            :<|> "submissions" :> Get '[JSON] [SolutionId]
-
-            :<|> "submissions" :> ReqBody '[JSON] Solution
+            :<|> "submissions" :> ReqBody '[PlainText] T.Text
                                :> Post '[JSON] SolutionId
 
--- TODO
-getTestRunsList :: SqlBackend -> EitherT ServantErr IO [TestRunId]
-getTestRunsList _backend = undefined
+------------------------------------------------------------------------------
 
--- TODO
-getTestRuns :: SqlBackend -> Int -> EitherT ServantErr IO TestRun
-getTestRuns _backend = undefined
+getSolutionsList :: SqlBackend
+                 -> EitherT ServantErr IO [SolutionId]
+getSolutionsList backend =
+  runSqlConn (selectKeysList [] []) backend
 
--- TODO
-getSolutions :: SqlBackend -> EitherT ServantErr IO [SolutionId]
-getSolutions _backend = undefined
+------------------------------------------------------------------------------
 
--- TODO
-postSolutions :: SqlBackend -> Solution -> EitherT ServantErr IO SolutionId
-postSolutions _backend = undefined
+getSolutionResults :: SqlBackend -> SolutionId
+                   -> EitherT ServantErr IO SolutionResults
+getSolutionResults backend solutionId =
+  runSqlConn (get solutionId) backend >>= \case
+    Nothing -> throwError err404
+    Just solution -> do
+      runs <- runSqlConn (selectKeysList [TestRunOfSolution ==. solutionId]
+                                         [Asc TestRunNumber]) backend
+      return (SolutionResults solution runs)
+
+------------------------------------------------------------------------------
+
+postSolutions :: SqlBackend -> T.Text
+              -> EitherT ServantErr IO SolutionId
+postSolutions backend code = do
+  
+  runSqlConn (insert (Solution Compiling fileName)) backend
+
+------------------------------------------------------------------------------
 
 trapojack :: SqlBackend -> Server Trapojack
-trapojack backend = getTestRunsList backend :<|> getTestRuns backend
-               :<|> getSolutions backend :<|> postSolutions backend
+trapojack backend = getSolutionsList backend
+               :<|> getSolutionResults backend
+               :<|> postSolutions backend
 
 main :: IO ()
 main = runNoLoggingT

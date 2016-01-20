@@ -1,0 +1,17 @@
+# output binaries
+executive
+trapojack
+
+# haskell compilation files
+*.hi
+*.dyn_hi
+*.o
+*.dyn_o
+
+# programs' files
+filestore/
+*.db
+
+# other boring files
+*.swp
+*~
