@@ -14,6 +14,8 @@ data SolutionState
   = Compiling
   | Compiled
   | CompileError
+  | Waiting
+  | Finished
   deriving (Show, Read, Eq)
 
 data TestRunState
@@ -36,6 +38,8 @@ instance ToJSON SolutionState where
     Compiling    -> "Compiling"
     Compiled     -> "Compiled"
     CompileError -> "CE"
+    Waiting      -> "Waiting"
+    Finished     -> "Finished"
 
 instance ToJSON TestRunState where
   toJSON st = case st of

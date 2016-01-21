@@ -45,7 +45,10 @@ type Trapojack = "solutions"
 
 getSolutionsList :: SqlBackend
                 -> EitherT ServantErr IO [SolutionSummary]
-getSolutionsList _backend = undefined
+getSolutionsList backend =
+  runSqlConn (map go <$> selectList [] []) backend
+  where go (Entity key Solution{..}) =
+          SolutionSummary key solutionOfProblem solutionState
 
 ------------------------------------------------------------------------------
 
@@ -61,7 +64,8 @@ getSolutionDetails backend solutionId =
 ------------------------------------------------------------------------------
 
 getProblemsList :: SqlBackend -> EitherT ServantErr IO [ProblemSummary]
-getProblemsList backend = runSqlConn (map go <$> selectList [] []) backend
+getProblemsList backend =
+    runSqlConn (map go <$> selectList [] []) backend
   where go (Entity key Problem{..}) =
           ProblemSummary key problemTitle
 
@@ -91,9 +95,9 @@ trapojack backend = getSolutionsList backend
                :<|> postSolution backend
 
 main :: IO ()
-main = runNoLoggingT
+main = runStdoutLoggingT
      . withSqliteConn "dev.db" $ \backend ->
-         NoLoggingT $ do
+         LoggingT $ \_logger -> do
            runSqlConn (runMigration migrateAll) backend
            liftIO $ run 2333 (serve (Proxy :: Proxy Trapojack)
                                     (trapojack backend))

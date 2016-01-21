@@ -25,7 +25,7 @@ data SolutionSummary
   = SolutionSummary
     { ssId :: SolutionId
     , ssOfProblem :: ProblemId
-    , ssTestRunStates :: [TestRunState]
+    , ssState :: SolutionState
     }
 
 data SolutionDetails

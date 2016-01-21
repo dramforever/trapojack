@@ -35,23 +35,23 @@ import           States
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 TestRun
-    number Int
-    state TestRunState
-    log Text
-    ofSolution SolutionId
-    deriving Show
+  ofSolution SolutionId
+  number Int
+  state TestRunState
+  log Text
+  deriving Show
 Solution
-    ofProblem ProblemId
-    state SolutionState
-    cuid Text
-    UniqueFileId cuid
-    deriving Show
+  ofProblem ProblemId
+  state SolutionState
+  cuid Text
+  UniqueFileId cuid
+  deriving Show
 Problem
-    title Text
-    description Text
-    handle Text
-    UniqueHandle handle
-    deriving Show
+  title Text
+  description Text
+  handle Text
+  UniqueHandle handle
+  deriving Show
 |]
 
 $(deriveToJSON defaultOptions{fieldLabelModifier = camelTo2 '_' . drop (length "TestRun")} ''TestRun)
